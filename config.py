@@ -1,7 +1,7 @@
 """Shared constants for the PaperRec pipeline."""
 
 # Pipeline parameters
-SEED_ID = "1706.03762v7" # Attention Is All You Need
+SEED_ID = "ARXIV:1706.03762" # Attention Is All You Need
 MAX_DEPTH = 2
 MAX_BRANCHING = 50
 DAMPING = 0.85
