@@ -21,6 +21,9 @@ Edge = tuple[str, str]
 METADATA_FIELDS = ["title", "authors", "year", "abstract", "citationCount", "venue"]
 
 
+BATCH_SIZE = 500  # Semantic Scholar batch endpoint limit
+
+
 class SemanticScholarClient:
     """SemanticScholar wrapper with safe pagination and pacing."""
 
@@ -28,12 +31,6 @@ class SemanticScholarClient:
         self._sch = SemanticScholar(timeout=timeout)
         self._branching = branching
         self._sleep = sleep_seconds
-
-    def references(self, paper_id: str) -> list[str]:
-        return self._get_neighbors(self._sch.get_paper_references, paper_id)
-
-    def citations(self, paper_id: str) -> list[str]:
-        return self._get_neighbors(self._sch.get_paper_citations, paper_id)
 
     def resolve_id(self, paper_id: str) -> str:
         """Resolve an external ID (e.g. ARXIV:...) to an internal paperId."""
@@ -46,59 +43,54 @@ class SemanticScholarClient:
         papers = self._sch.get_papers(paper_ids, fields=METADATA_FIELDS)
         return {p.paperId: p for p in papers if p and p.paperId}
 
-    def _get_neighbors(self, call, paper_id: str) -> list[str]:
-        try:
-            page = call(paper_id, limit=self._branching)
-        except TypeError:
-            page = []
-        ids: list[str] = []
-        for item in page[: self._branching]:
-            related = item.paper
-            if related and related.paperId:
-                ids.append(related.paperId)
-        time.sleep(self._sleep)
-        return ids
+    def get_papers_with_neighbors(self, paper_ids: list[str]) -> list:
+        """Batch-fetch papers with their references and citations."""
+        fields = ["paperId", "references.paperId", "citations.paperId"]
+        results = []
+        for i in range(0, len(paper_ids), BATCH_SIZE):
+            batch = paper_ids[i : i + BATCH_SIZE]
+            papers = self._sch.get_papers(batch, fields=fields)
+            results.extend(p for p in papers if p and p.paperId)
+            if i + BATCH_SIZE < len(paper_ids):
+                time.sleep(self._sleep)
+        return results
 
 
-def fetch_outgoing(client: SemanticScholarClient, paper_id: str) -> Iterator[Edge]:
-    for neighbour in client.references(paper_id):
-        yield (paper_id, neighbour)
-
-
-def fetch_incoming(client: SemanticScholarClient, paper_id: str) -> Iterator[Edge]:
-    for neighbour in client.citations(paper_id):
-        yield (neighbour, paper_id)
-
-
-def scrape(client: SemanticScholarClient, seed_id: str, max_depth: int) -> Iterator[Edge]:
+def scrape(client: SemanticScholarClient, seed_id: str, max_depth: int, branching: int) -> Iterator[Edge]:
+    """BFS by depth level, using batch API calls to fetch all neighbors at once."""
     visited: set[str] = {seed_id}
-    queue: list[tuple[str, int]] = [(seed_id, 0)]
+    current_level = [seed_id]
 
-    while queue:
-        current, depth = queue.pop(0)
-        if depth >= max_depth:
-            continue
+    for depth in range(max_depth):
+        print(
+            f"[depth {depth}] batch-fetching {len(current_level)} papers...",
+            flush=True,
+        )
+        papers = client.get_papers_with_neighbors(current_level)
+        next_level: list[str] = []
 
-        print(f"[depth {depth}] fetching {current} (queue={len(queue)})", flush=True)
+        for paper in papers:
+            pid = paper.paperId
 
-        for edge in fetch_outgoing(client, current):
-            yield edge
-            _enqueue(edge[1], depth + 1, visited, queue)
+            for ref in (paper.references or [])[:branching]:
+                if ref and ref.paperId:
+                    yield (pid, ref.paperId)
+                    if ref.paperId not in visited:
+                        visited.add(ref.paperId)
+                        next_level.append(ref.paperId)
 
-        for edge in fetch_incoming(client, current):
-            yield edge
-            _enqueue(edge[0], depth + 1, visited, queue)
+            for cit in (paper.citations or [])[:branching]:
+                if cit and cit.paperId:
+                    yield (cit.paperId, pid)
+                    if cit.paperId not in visited:
+                        visited.add(cit.paperId)
+                        next_level.append(cit.paperId)
 
-
-def _enqueue(
-    neighbor: str,
-    depth: int,
-    visited: set[str],
-    queue: list[tuple[str, int]],
-) -> None:
-    if neighbor not in visited:
-        visited.add(neighbor)
-        queue.append((neighbor, depth))
+        print(
+            f"[depth {depth}] discovered {len(next_level)} new papers",
+            flush=True,
+        )
+        current_level = next_level
 
 
 
@@ -168,7 +160,7 @@ def main() -> None:
     with open(edges_path, "w", newline="", encoding="utf-8", buffering=1) as f:
         writer = csv.writer(f)
         writer.writerow(["Source", "Target"])
-        for edge in scrape(client, seed_id, args.max_depth):
+        for edge in scrape(client, seed_id, args.max_depth, args.max_branching):
             writer.writerow(edge)
             count += 1
     print(f"Wrote {count} edges to {edges_path}")

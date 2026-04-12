@@ -52,7 +52,7 @@ The project is split into three modules:
 
 ### `main.py` — Entry Point & Scraper
 * Orchestrates the full pipeline: BFS network scraping, PageRank computation, metadata resolution, and output formatting.
-* Wraps the Semantic Scholar API client with rate limiting (~1 req/s) and a configurable branching cap per node.
+* Wraps the Semantic Scholar API client with batch fetching and a configurable branching cap per node.
 * Resolves external seed IDs (e.g., `ARXIV:1706.03762`) to internal Semantic Scholar paper IDs before traversal.
 
 ### `math_engine.py` — Linear Algebra & PageRank
@@ -69,9 +69,9 @@ The project is split into three modules:
 ### Step 1: Scrape (`main.py`)
 
 1. Read the seed ID from `--seed` (or `config.SEED_ID`). Resolve it to an internal Semantic Scholar ID via the API.
-2. Run BFS from the seed with `MAX_DEPTH = 2` and `MAX_BRANCHING = 50`:
-   - For each node, fetch both its **references** (outgoing edges) and **citations** (incoming edges), capped at the branching limit.
-   - Enqueue newly discovered papers, tracking visited nodes to avoid cycles.
+2. Run level-by-level BFS from the seed with `MAX_DEPTH = 2` and `MAX_BRANCHING = 50`:
+   - At each depth, batch-fetch all papers in the current level using the Semantic Scholar batch endpoint (`POST /graph/v1/paper/batch`, up to 500 papers per request), retrieving both **references** and **citations** in a single call.
+   - Cap each paper's references and citations at the branching limit. Enqueue newly discovered papers for the next level, tracking visited nodes to avoid cycles.
 3. Stream edges to `output/<timestamp>/edges.csv` as `Source,Target` pairs.
 
 ### Step 2: Rank (`math_engine.py`)
@@ -90,4 +90,4 @@ The project is split into three modules:
 
 * **Memory:** A depth-2 citation network can yield $N > 10{,}000$ nodes (a 100M-entry dense matrix). This is handled entirely with `scipy.sparse` data structures (`coo_matrix`, `csr_matrix`).
 * **Dangling Nodes:** Papers with zero outbound citations are probability sinks. The damping factor ($d = 0.85$) and teleportation vector guarantee convergence by redistributing probability back to the seed.
-* **API Rate Limits:** The Semantic Scholar public API allows ~1 request/second. The client enforces a 1.1-second sleep between calls and a 30-second timeout per request.
+* **API Rate Limits:** The Semantic Scholar public API allows ~1 request/second. The client uses the batch endpoint to minimize the number of calls (up to 500 papers per request), with a 1.1-second sleep between batch requests and a 30-second timeout.
