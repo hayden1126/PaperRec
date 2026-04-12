@@ -35,6 +35,13 @@ class SemanticScholarClient:
     def citations(self, paper_id: str) -> list[str]:
         return self._get_neighbors(self._sch.get_paper_citations, paper_id)
 
+    def resolve_id(self, paper_id: str) -> str:
+        """Resolve an external ID (e.g. ARXIV:...) to an internal paperId."""
+        paper = self._sch.get_paper(paper_id, fields=["paperId"])
+        if paper and paper.paperId:
+            return paper.paperId
+        return paper_id
+
     def get_papers(self, paper_ids: list[str]) -> dict:
         papers = self._sch.get_papers(paper_ids, fields=METADATA_FIELDS)
         return {p.paperId: p for p in papers if p and p.paperId}
@@ -144,10 +151,13 @@ def main() -> None:
         timeout=config.REQUEST_TIMEOUT_SECONDS,
     )
 
+    seed_id = client.resolve_id(args.seed)
+    print(f"Resolved seed: {args.seed} -> {seed_id}", flush=True)
+
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     run_dir = os.path.join(config.OUTPUT_DIR, timestamp)
     os.makedirs(run_dir, exist_ok=True)
-    print(f"Seed: {args.seed}", flush=True)
+    print(f"Seed: {seed_id}", flush=True)
     print(f"Run dir: {run_dir}", flush=True)
 
     edges_path = os.path.join(run_dir, config.EDGES_CSV)
@@ -158,13 +168,13 @@ def main() -> None:
     with open(edges_path, "w", newline="", encoding="utf-8", buffering=1) as f:
         writer = csv.writer(f)
         writer.writerow(["Source", "Target"])
-        for edge in scrape(client, args.seed, args.max_depth):
+        for edge in scrape(client, seed_id, args.max_depth):
             writer.writerow(edge)
             count += 1
     print(f"Wrote {count} edges to {edges_path}")
 
     # 2. Rank
-    v, idx_to_id = math_engine.rank(edges_path, args.seed)
+    v, idx_to_id = math_engine.rank(edges_path, seed_id)
     order = math_engine.top_n(v, idx_to_id, config.TOP_N)
 
     with open(ranked_path, "w", newline="", encoding="utf-8") as f:
