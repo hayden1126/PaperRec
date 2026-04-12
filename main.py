@@ -102,7 +102,7 @@ def _enqueue(
 
 
 
-# Output
+# Output / Display
 
 def load_rankings(path: str) -> list[tuple[int, str, float]]:
     rows: list[tuple[int, str, float]] = []
@@ -184,7 +184,7 @@ def main() -> None:
             writer.writerow([rank, pid, f"{score:.8f}"])
     print(f"Wrote top {config.TOP_N} to {ranked_path}")
 
-    # 3. Output
+    # 3. Display
     rankings = load_rankings(ranked_path)
     paper_ids = [pid for _, pid, _ in rankings]
     by_id = client.get_papers(paper_ids)
