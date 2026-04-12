@@ -59,10 +59,10 @@ The project is split into three modules:
 * Maps paper IDs to integer indices and constructs a sparse adjacency matrix via `scipy.sparse.coo_matrix`.
 * Column-normalizes the adjacency matrix into the transition probability matrix $P$.
 * Solves the PPR linear system $(I - dP)\mathbf{v} = (1 - d)\mathbf{e}_s$ using `scipy.sparse.linalg.spsolve`.
-* Returns the top-$N$ paper IDs and their steady-state scores.
+* Returns the top-N paper IDs and their steady-state scores.
 
 ### `config.py` — Configuration
-* Shared constants: seed paper ID, BFS depth/branching, damping factor, API rate limiting, top-$N$ count, and output file names.
+* Shared constants: seed paper ID, BFS depth/branching, damping factor, API rate limiting, top-N count, and output file names.
 
 ## Pipeline Walkthrough
 
