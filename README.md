@@ -33,7 +33,7 @@ To manage API rate limits and the massive memory overhead of $N \times N$ matric
 ### `config.py` (Configuration)
 * **Function:** Shared constants — seed paper ID, BFS depth/branching, damping factor, API rate limiting, and output file names.
 
-## 🚀 Setup & Execution
+## Setup & Execution
 
 ### Prerequisites
 * Python 3.10+
@@ -49,7 +49,7 @@ python main.py --seed <Semantic_Scholar_Paper_ID>
 
 The pipeline scrapes the network, computes PageRank, and prints the reading list in one run. Results are saved to `output/<timestamp>/`.
 
-## ⚠️ Known Challenges & Mitigations
+## Known Challenges & Mitigations
 * **Memory Constraints:** A depth of 2 in a citation network can yield $N > 10,000$ nodes (a 100M entry matrix). Dense matrices will cause immediate memory failure. This is mitigated entirely by utilizing `scipy.sparse.coo_matrix` and `csr_matrix`.
 * **Dangling Nodes:** Uncited papers act as probability sinks in a standard Markov chain. The integration of the damping factor ($d = 0.85$) mathematically guarantees the matrix remains regular, allowing the simulation to "teleport" back to the seed.
 
