@@ -25,7 +25,7 @@ class SemanticScholarClient:
     """SemanticScholar wrapper with safe pagination and pacing."""
 
     def __init__(self, *, branching: int, sleep_seconds: float, timeout: float) -> None:
-        self._sch = SemanticScholar(timeout=timeout)
+        self._sch = SemanticScholar(api_key=config.S2_API_KEY, timeout=timeout)
         self._branching = branching
         self._sleep = sleep_seconds
 

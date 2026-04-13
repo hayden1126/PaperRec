@@ -1,5 +1,7 @@
 """Shared constants for the PaperRec pipeline."""
 
+import os
+
 # Pipeline parameters
 SEED_ID = "ARXIV:1706.03762" # Attention Is All You Need
 MAX_DEPTH = 2
@@ -8,7 +10,8 @@ DAMPING = 0.85
 TOP_N = 20
 
 # Semantic Scholar
-REQUEST_SLEEP_SECONDS = 1.1  # respect public rate limit (~1 req/s)
+S2_API_KEY = os.environ.get("S2_API_KEY")
+REQUEST_SLEEP_SECONDS = 0.1 if S2_API_KEY else 1.1
 REQUEST_TIMEOUT_SECONDS = 30
 
 # Files
