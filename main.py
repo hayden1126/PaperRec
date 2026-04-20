@@ -170,6 +170,8 @@ def main() -> None:
 
     edges_path = os.path.join(run_dir, config.EDGES_CSV)
     ranked_path = os.path.join(run_dir, config.RANKED_CSV)
+    with open(os.path.join(run_dir, "seed.txt"), "w", encoding="utf-8") as f:
+        f.write(seed_id)
 
     # 1. Scrape
     count = 0

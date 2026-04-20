@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 output/
+*.md
+!README.md
+samples/

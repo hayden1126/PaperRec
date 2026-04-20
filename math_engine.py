@@ -32,22 +32,22 @@ def build_transition_matrix(df: pd.DataFrame,
     cols = df["Source"].map(id_to_idx).to_numpy()
     data = np.ones(len(df), dtype=np.float64)
 
-    A = coo_matrix((data, (rows, cols)), shape=(n, n)).tocsr()
+    A = coo_matrix((data, (rows, cols)), shape=(n, n)).tocsr()  # sparse adjacency matrix from edge list
 
-    col_sums = np.asarray(A.sum(axis=0)).ravel()
+    col_sums = np.asarray(A.sum(axis=0)).ravel()  # out-degree of each node
     inv = np.zeros_like(col_sums)
     nz = col_sums > 0
-    inv[nz] = 1.0 / col_sums[nz]
-    P = A @ diags(inv)
+    inv[nz] = 1.0 / col_sums[nz]  # inverse degrees, zero for dangling nodes
+    P = A @ diags(inv)  # normalize columns so each non-dangling column sums to 1
 
-    dangling = np.where(~nz)[0]
+    dangling = np.where(~nz)[0]  # indices of columns with no outgoing edges
     if dangling.size > 0:
         seed_rows = np.full(dangling.size, seed_idx)
         fix = coo_matrix(
             (np.ones(dangling.size), (seed_rows, dangling)),
             shape=(n, n),
-        )
-        P = P + fix
+        )  # rank-one update placing all mass of each dangling column on the seed row
+        P = P + fix  # teleport dangling nodes back to the seed, restoring column-stochasticity
 
     return P.tocsr()
 
