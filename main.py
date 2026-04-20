@@ -7,8 +7,9 @@ import argparse
 import csv
 import os
 import time
-from datetime import datetime
+from collections import deque
 from collections.abc import Iterator
+from datetime import datetime
 
 from semanticscholar import SemanticScholar
 from semanticscholar.SemanticScholarException import (
@@ -22,6 +23,7 @@ import math_engine
 
 Edge = tuple[str, str]
 
+# S2 get_papers batches up to 500 ids per call, so TOP_N must stay under that cap.
 METADATA_FIELDS = ["title", "authors", "year", "abstract", "citationCount", "venue"]
 
 
@@ -80,10 +82,10 @@ def fetch_incoming(client: SemanticScholarClient, paper_id: str) -> Iterator[Edg
 
 def scrape(client: SemanticScholarClient, seed_id: str, max_depth: int) -> Iterator[Edge]:
     visited: set[str] = {seed_id}
-    queue: list[tuple[str, int]] = [(seed_id, 0)]
+    queue: deque[tuple[str, int]] = deque([(seed_id, 0)])
 
     while queue:
-        current, depth = queue.pop(0)
+        current, depth = queue.popleft()
         if depth >= max_depth:
             continue
 
@@ -102,7 +104,7 @@ def _enqueue(
     neighbor: str,
     depth: int,
     visited: set[str],
-    queue: list[tuple[str, int]],
+    queue: deque[tuple[str, int]],
 ) -> None:
     if neighbor not in visited:
         visited.add(neighbor)
@@ -153,6 +155,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if not config.S2_API_KEY:
+        print("[warn] S2_API_KEY not set; API requests throttled to ~1/s. "
+              "Depth-2 scrapes with branching=50 can take many minutes.", flush=True)
     client = SemanticScholarClient(
         branching=args.max_branching,
         sleep_seconds=config.REQUEST_SLEEP_SECONDS,
@@ -170,8 +175,6 @@ def main() -> None:
 
     edges_path = os.path.join(run_dir, config.EDGES_CSV)
     ranked_path = os.path.join(run_dir, config.RANKED_CSV)
-    with open(os.path.join(run_dir, "seed.txt"), "w", encoding="utf-8") as f:
-        f.write(seed_id)
 
     # 1. Scrape
     count = 0
@@ -182,6 +185,10 @@ def main() -> None:
             writer.writerow(edge)
             count += 1
     print(f"Wrote {count} edges to {edges_path}")
+
+    # seed.txt is written last so its presence marks the scrape as complete.
+    with open(os.path.join(run_dir, "seed.txt"), "w", encoding="utf-8") as f:
+        f.write(seed_id)
 
     # 2. Rank
     v, idx_to_id = math_engine.rank(edges_path, seed_id)

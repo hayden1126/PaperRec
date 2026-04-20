@@ -22,11 +22,12 @@ def build_index(df: pd.DataFrame) -> dict[str, int]:
     return {pid: i for i, pid in enumerate(unique_ids)}
 
 
-def build_transition_matrix(df: pd.DataFrame,
+def build_transition_matrix_for_seed(df: pd.DataFrame,
     id_to_idx: dict[str, int],
     seed_idx: int,
 ) -> csr_matrix:
-    """Column-stochastic transition matrix; dangling columns teleport to seed."""
+    """Column-stochastic transition matrix. Dangling columns are redirected to the
+    given seed row, so the returned matrix is only valid for PPR with this seed."""
     n = len(id_to_idx)
     rows = df["Target"].map(id_to_idx).to_numpy()
     cols = df["Source"].map(id_to_idx).to_numpy()
@@ -34,8 +35,8 @@ def build_transition_matrix(df: pd.DataFrame,
 
     A = coo_matrix((data, (rows, cols)), shape=(n, n)).tocsr()  # sparse adjacency matrix from edge list
 
-    col_sums = np.asarray(A.sum(axis=0)).ravel()  # out-degree of each node
-    inv = np.zeros_like(col_sums)
+    col_sums = np.asarray(A.sum(axis=0)).ravel().astype(np.float64)  # out-degree of each node
+    inv = np.zeros(n, dtype=np.float64)
     nz = col_sums > 0
     inv[nz] = 1.0 / col_sums[nz]  # inverse degrees, zero for dangling nodes
     P = A @ diags(inv)  # normalize columns so each non-dangling column sums to 1
@@ -74,7 +75,7 @@ def rank(edges_path: str, seed_id: str) -> tuple[np.ndarray, dict[int, str]]:
         raise SystemExit(f"Seed {seed_id} not present in {edges_path}")
 
     seed_idx = id_to_idx[seed_id]
-    P = build_transition_matrix(df, id_to_idx, seed_idx)
+    P = build_transition_matrix_for_seed(df, id_to_idx, seed_idx)
     v = personalized_pagerank(P, seed_idx, config.DAMPING)
     idx_to_id = {i: pid for pid, i in id_to_idx.items()}
     return v, idx_to_id

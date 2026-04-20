@@ -82,7 +82,7 @@ def main() -> None:
     if seed_id not in id_to_idx:
         raise SystemExit(f"Seed {seed_id} not present in {args.run_dir}")
     seed_idx = id_to_idx[seed_id]
-    P = math_engine.build_transition_matrix(df, id_to_idx, seed_idx)
+    P = math_engine.build_transition_matrix_for_seed(df, id_to_idx, seed_idx)
     n = P.shape[0]
     print(f"Loaded {len(df)} edges over {n} unique nodes (seed: {seed_id})")
 
@@ -106,7 +106,7 @@ def main() -> None:
     in_degree = np.zeros(n, dtype=np.int64)
     for target in df["Target"]:
         in_degree[id_to_idx[target]] += 1
-    v_default = scores[int(np.where(damping_values == config.DAMPING)[0][0])]
+    v_default = scores[int(np.where(np.isclose(damping_values, config.DAMPING))[0][0])]
     overlap = top_k_overlap(v_default, in_degree, config.TOP_N)
     print(f"Top-{config.TOP_N} overlap (PPR vs. citation count): {overlap} of {config.TOP_N}")
 

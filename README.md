@@ -105,7 +105,7 @@ The project is split into five modules:
 ### Step 4: Evaluate (`make_figures.py`, optional)
 
 1. Run power iteration at the default damping to produce a convergence trace.
-2. Run a damping sweep across $\{0.50, 0.60, \dots, 0.99\}$ to produce a stability heatmap.
+2. Run a damping sweep across $\{0.50, 0.60, 0.70, 0.80, 0.85, 0.90, 0.95, 0.99\}$ to produce a stability heatmap.
 3. Compute the top-N overlap between PPR and raw citation-count rankings.
 4. Save figures to the run directory and print the overlap to stdout.
 
