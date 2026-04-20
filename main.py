@@ -11,6 +11,10 @@ from datetime import datetime
 from collections.abc import Iterator
 
 from semanticscholar import SemanticScholar
+from semanticscholar.SemanticScholarException import (
+    ObjectNotFoundException,
+    SemanticScholarException,
+)
 
 import config
 import math_engine
@@ -49,8 +53,12 @@ class SemanticScholarClient:
     def _get_neighbors(self, call, paper_id: str) -> list[str]:
         try:
             page = call(paper_id, limit=self._branching)
-        except TypeError:
-            page = []
+        except ObjectNotFoundException:
+            return []
+        except SemanticScholarException as exc:
+            print(f"  [warn] API error for {paper_id}: {exc}", flush=True)
+            time.sleep(self._sleep)
+            return []
         ids: list[str] = []
         for item in page[: self._branching]:
             related = item.paper

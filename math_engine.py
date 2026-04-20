@@ -22,37 +22,46 @@ def build_index(df: pd.DataFrame) -> dict[str, int]:
     return {pid: i for i, pid in enumerate(unique_ids)}
 
 
-def build_transition_matrix(df: pd.DataFrame, id_to_idx: dict[str, int]) -> csr_matrix:
-    """Column-stochastic transition matrix P where P[i,j] = prob of moving from j to i."""
+def build_transition_matrix(df: pd.DataFrame,
+    id_to_idx: dict[str, int],
+    seed_idx: int,
+) -> csr_matrix:
+    """Column-stochastic transition matrix; dangling columns teleport to seed."""
     n = len(id_to_idx)
     rows = df["Target"].map(id_to_idx).to_numpy()
     cols = df["Source"].map(id_to_idx).to_numpy()
     data = np.ones(len(df), dtype=np.float64)
 
-    A = coo_matrix((data, (rows, cols)), shape=(n, n)).tocsr()  # sparse adjacency matrix from edge list
+    A = coo_matrix((data, (rows, cols)), shape=(n, n)).tocsr()
 
-    col_sums = np.asarray(A.sum(axis=0)).ravel()  # out-degree of each node
+    col_sums = np.asarray(A.sum(axis=0)).ravel()
     inv = np.zeros_like(col_sums)
     nz = col_sums > 0
-    inv[nz] = 1.0 / col_sums[nz]  # inverse degrees, zero for dangling nodes
-    P = A @ diags(inv)  # normalize columns so each sums to 1
+    inv[nz] = 1.0 / col_sums[nz]
+    P = A @ diags(inv)
+
+    dangling = np.where(~nz)[0]
+    if dangling.size > 0:
+        seed_rows = np.full(dangling.size, seed_idx)
+        fix = coo_matrix(
+            (np.ones(dangling.size), (seed_rows, dangling)),
+            shape=(n, n),
+        )
+        P = P + fix
+
     return P.tocsr()
 
 
 def personalized_pagerank(P: csr_matrix, seed_idx: int, damping: float) -> np.ndarray:
-    """Solve the PPR linear system directly and return the normalized score vector."""
+    """Solve the PPR linear system and return v, the stationary distribution."""
     n = P.shape[0]
     e_s = np.zeros(n, dtype=np.float64)
     e_s[seed_idx] = 1.0  # teleport vector: all weight on the seed node
 
     A_solve = (eye(n, format="csr") - damping * P).tocsc()  # (I - αP), rearranged from v = αPv + (1-α)e_s
     b = (1.0 - damping) * e_s
-    v = spsolve(A_solve, b)  # solve (I - αP)v = (1-α)e_s
-
-    total = v.sum()
-    if total > 0:
-        v = v / total
-    return v
+    # No post-normalization: P is column-stochastic, so v sums to 1 by construction.
+    return spsolve(A_solve, b)
 
 
 def rank(edges_path: str, seed_id: str) -> tuple[np.ndarray, dict[int, str]]:
@@ -64,8 +73,9 @@ def rank(edges_path: str, seed_id: str) -> tuple[np.ndarray, dict[int, str]]:
     if seed_id not in id_to_idx:
         raise SystemExit(f"Seed {seed_id} not present in {edges_path}")
 
-    P = build_transition_matrix(df, id_to_idx)
-    v = personalized_pagerank(P, id_to_idx[seed_id], config.DAMPING)
+    seed_idx = id_to_idx[seed_id]
+    P = build_transition_matrix(df, id_to_idx, seed_idx)
+    v = personalized_pagerank(P, seed_idx, config.DAMPING)
     idx_to_id = {i: pid for pid, i in id_to_idx.items()}
     return v, idx_to_id
 
