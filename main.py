@@ -53,14 +53,27 @@ class SemanticScholarClient:
         return {p.paperId: p for p in papers if p and p.paperId}
 
     def _get_neighbors(self, call, paper_id: str) -> list[str]:
-        try:
-            page = call(paper_id, limit=self._branching)
-        except ObjectNotFoundException:
-            return []
-        except SemanticScholarException as exc:
-            print(f"  [warn] API error for {paper_id}: {exc}", flush=True)
-            time.sleep(self._sleep)
-            return []
+        # TypeError from the library = S2 returned {"data": null} for a paper whose
+        # references/citations were elided by the publisher. Deterministic, no retry.
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                page = call(paper_id, limit=self._branching)
+                break
+            except ObjectNotFoundException:
+                return []
+            except TypeError:
+                print(f"  [info] {paper_id}: neighbours elided by publisher, skipping", flush=True)
+                time.sleep(self._sleep)
+                return []
+            except SemanticScholarException as exc:
+                if attempt == max_attempts - 1:
+                    print(f"  [warn] giving up on {paper_id} after {max_attempts} attempts: {exc}", flush=True)
+                    time.sleep(self._sleep)
+                    return []
+                backoff = self._sleep * (2 ** attempt)
+                print(f"  [warn] transient error for {paper_id} (attempt {attempt + 1}/{max_attempts}): {exc}; retrying in {backoff:.1f}s", flush=True)
+                time.sleep(backoff)
         ids: list[str] = []
         for item in page[: self._branching]:
             related = item.paper
