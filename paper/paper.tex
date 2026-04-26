@@ -25,7 +25,7 @@
 We model academic paper recommendation as Personalized
 PageRank on a citation network built around a single seed
 paper, scraped two hops outward via breadth-first search. The
-ranking we want comes out as the stationary distribution of a
+ranking we want comes out as the invariant distribution of a
 Markov chain whose walker, at each step, either follows a
 citation or teleports back to the seed; dangling nodes
 (papers with no recorded outgoing citations) are also
@@ -68,10 +68,10 @@ link out of the current node (with some probability $d$ called
 the \emph{damping factor}) or, with probability $1-d$, jumps to
 some chosen distribution of nodes. The long-run fraction of time the walker
 spends at each node is its rank. Mathematically, this fraction
-is the \emph{stationary distribution} of a \emph{Markov chain},
+is the \emph{invariant distribution} of a \emph{Markov chain},
 a random process whose next state depends only on the current
 state, summarized by a transition matrix between states. For a
-stochastic transition matrix, the stationary distribution
+left-stochastic transition matrix, the invariant distribution
 coincides with the dominant eigenvector, so the Markov-chain
 view and the linear-algebra view of the course produce the same
 ranking. The
@@ -132,7 +132,7 @@ the \emph{transition matrix}
 whose entry $P_{ij}$ is the probability that a walker currently at
 paper $j$ moves to paper $i$ in one step. The walker picks one of
 paper $j$'s references uniformly at random and follows it. We call
-$P$ \emph{column-stochastic} when every column sums to $1$, that
+$P$ \emph{left-stochastic} when every column sums to $1$, that
 is, when each column is a valid probability distribution over
 destinations.
 
@@ -141,7 +141,7 @@ outgoing edges in the scraped network (which we call \emph{dangling
 nodes}) have a column of $A$ that sums to zero, so the
 corresponding column of $P$ is all zeros, which is not a
 probability distribution at all. These columns must be patched
-before $P$ is properly column-stochastic.
+before $P$ is properly left-stochastic.
 
 We follow the \emph{strongly preferential} convention of
 Langville and Meyer~\cite{langville2004deeper} and set every
@@ -150,11 +150,11 @@ $\mathbf{e}_s$, defined as the column vector whose entry at the
 seed paper is one and whose other entries are zero. Operationally, a walker
 that lands on a paper with no recorded references teleports
 back to the seed and continues from there. This keeps $P$
-column-stochastic, and it preserves the random-walk
-interpretation of the eventual stationary
+left-stochastic, and it preserves the random-walk
+interpretation of the eventual invariant
 distribution~\cite{gleich2015pagerank}.
 
-With $P$ now stochastic, we define the teleport-modified transition
+With $P$ now left-stochastic, we define the teleport-modified transition
 matrix
 \begin{equation}
   M = dP + (1 - d)\,\mathbf{e}_s \mathbf{1}^\top,
@@ -169,9 +169,9 @@ probability $d$ or teleports back to the seed with probability
 $1 - d$.
 
 Because each column of $M$ is a convex combination of two
-stochastic vectors, $M$ is column-stochastic and therefore a
+stochastic vectors, $M$ is left-stochastic and therefore a
 valid Markov transition matrix. Its principal eigenvector,
-with eigenvalue $1$, is the stationary distribution
+with eigenvalue $1$, is the invariant distribution
 $\mathbf{v}$:
 \begin{equation}
   M \mathbf{v} = \mathbf{v}.
@@ -208,7 +208,7 @@ eigendecomposition. Second, $I - dP$ is invertible, so the
 solution is unique. To see this, take any column $j$ of $I - dP$.
 The diagonal entry is $1 - dP_{jj}$, and the absolute sum of the
 off-diagonal entries is $\sum_{i \neq j} d \, P_{ij} = d(1 -
-P_{jj})$ by column-stochasticity. Whenever $d < 1$, the diagonal
+P_{jj})$ by left-stochasticity. Whenever $d < 1$, the diagonal
 strictly exceeds this sum: $(1 - dP_{jj}) - (d - dP_{jj}) = 1 - d
 > 0$. This property is called strict column diagonal dominance,
 and any matrix with it is invertible~\cite{langville2004deeper}.
@@ -216,18 +216,19 @@ and any matrix with it is invertible~\cite{langville2004deeper}.
 The solution $\mathbf{v}$ also sums to $1$ on its own, so no
 post-normalization is needed. Left-multiplying~\eqref{eq:ppr-linear}
 by $\mathbf{1}^\top$ and using $\mathbf{1}^\top P = \mathbf{1}^\top$
-(column-stochasticity, again) gives $(1-d)\,\mathbf{1}^\top
+(left-stochasticity, again) gives $(1-d)\,\mathbf{1}^\top
 \mathbf{v} = (1-d)$, hence $\mathbf{1}^\top \mathbf{v} = 1$.
 
 \section{Method A: Power Iteration as a Recursive Sequence}
 \label{sec:method-a}
 
 Equation~\eqref{eq:ppr-linear} hands us $\mathbf{v}$ in one
-shot, but a single solve tells us nothing about how a walker
-actually settles into the stationary distribution. Power
-iteration recovers that picture by trading the solve for a
-step-by-step update rule, and the rate at which that update
-converges is what we set out to predict in this section:
+shot, but a single solve tells us nothing about how the walker
+actually gets to the invariant distribution step by step.
+Power iteration tracks this exact progression by applying the
+Markov chain's transition rule repeatedly, and the rate at
+which the iterates converge to $\mathbf{v}$ is what we set
+out to predict in this section:
 \begin{equation}
   \mathbf{v}_{k+1} = dP\mathbf{v}_k + (1-d)\,\mathbf{e}_s,
   \label{eq:power-iter}
@@ -238,8 +239,7 @@ term) and add the constant teleport contribution back to the seed
 (the $(1-d)\mathbf{e}_s$ term). After enough iterations,
 $\mathbf{v}_k$ stops changing and equals $\mathbf{v}$. This is a
 recursive sequence of the kind studied in
-Nicholson~\cite{nicholson2018linear}, and unrolling it exposes
-the structure the linear solver hides.
+Nicholson~\cite{nicholson2018linear}.
 
 Unrolling~\eqref{eq:power-iter} $k$ times gives the closed form
 \begin{equation}
@@ -248,10 +248,10 @@ Unrolling~\eqref{eq:power-iter} $k$ times gives the closed form
   \label{eq:power-closed}
 \end{equation}
 Two facts about the eigenvalues of $P$ control how each term
-behaves as $k$ grows. First, $P$ is column-stochastic, so
+behaves as $k$ grows. First, $P$ is left-stochastic, so
 $\mathbf{1}^\top P = \mathbf{1}^\top$. The all-ones row vector is
 therefore a left eigenvector of $P$ with eigenvalue $1$, so $1$
-is an eigenvalue of $P$. Second, every eigenvalue of a column-stochastic
+is an eigenvalue of $P$. Second, every eigenvalue of a left-stochastic
 matrix is bounded in modulus by
 $1$~\cite{langville2004deeper}: $|\lambda| \leq 1$ for every
 $\lambda$.
@@ -307,7 +307,7 @@ therefore live in the subspace of zero-sum vectors, and this
 subspace is invariant under $dP$ (a zero-sum vector multiplied
 by $dP$ stays zero-sum, since $\mathbf{1}^\top dP =
 d\mathbf{1}^\top$). The right eigenvector of $P$ for $\lambda_1
-= 1$ is a stationary distribution of $P$, with nonnegative
+= 1$ is an invariant distribution of $P$, with nonnegative
 entries summing to one. Since the entries sum to one rather than
 zero, it does not lie in the zero-sum subspace. Restricted to
 that subspace, then, $dP$ acts only through eigenvalues other
@@ -357,17 +357,18 @@ Section~\ref{sec:method-a} fixed $d = 0.85$ throughout. The
 question now is whether that choice matters: does the ranking
 shift much if we slide $d$ across the range the literature
 considers reasonable? The damping factor carries two meanings
-simultaneously. As a
-Markov chain parameter, $d$ is the probability that the walker
-continues along the graph rather than teleporting back to the
-seed. As a linear-algebra parameter, $d$ is the contraction
-factor governing how fast~\eqref{eq:power-iter} forgets its
-starting condition. The two roles are not independent: every
-teleport resets the walker to the known state $\mathbf{e}_s$,
-which shrinks the non-stationary components of the current
-iterate by a factor of $d$. A smaller $d$ teleports more often,
-converges faster, and biases scores toward the seed; a larger
-$d$ explores more of the graph but converges more slowly.
+simultaneously. As a Markov chain parameter, $d$ is the
+probability that the walker continues along the graph rather
+than teleporting back to the seed. As a linear-algebra
+parameter, $d$ is the \emph{contraction factor}. The recursion
+shrinks the gap between successive iterates by roughly $d$
+each step, which is what makes them converge. These two roles
+connect through the teleport itself. Every time the walker
+teleports back to $\mathbf{e}_s$, the non-invariant components
+of the current iterate shrink by a factor of $d$. A smaller
+$d$ teleports more often, converges faster, and biases scores
+toward the seed; a larger $d$ explores more of the graph but
+converges more slowly.
 
 We used $d = 0.85$ in Section~\ref{sec:method-a} because it is
 the value Brin and Page originally chose~\cite{brin1998anatomy}
