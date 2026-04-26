@@ -222,13 +222,12 @@ by $\mathbf{1}^\top$ and using $\mathbf{1}^\top P = \mathbf{1}^\top$
 \section{Method A: Power Iteration as a Recursive Sequence}
 \label{sec:method-a}
 
-Equation~\eqref{eq:ppr-linear} hands us $\mathbf{v}$ in one
-shot, but a single solve tells us nothing about how the walker
-actually gets to the invariant distribution step by step.
-Power iteration tracks this exact progression by applying the
-Markov chain's transition rule repeatedly, and the rate at
-which the iterates converge to $\mathbf{v}$ is what we set
-out to predict in this section:
+Equation~\eqref{eq:ppr-linear} is a shortcut to computing
+$\mathbf{v}$. But let's investigate what happens when we run
+the Markov chain step by step. Power iteration does exactly
+that, applying the transition rule once per iteration, and the
+rate at which the iterates converge to $\mathbf{v}$ is what we
+set out to predict in this section:
 \begin{equation}
   \mathbf{v}_{k+1} = dP\mathbf{v}_k + (1-d)\,\mathbf{e}_s,
   \label{eq:power-iter}
